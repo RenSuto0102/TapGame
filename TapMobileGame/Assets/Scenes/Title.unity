@@ -182,7 +182,7 @@ MonoBehaviour:
   m_text: GAMESTART
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 6e27f2c412325cb4a8184c6d0903a547, type: 2}
-  m_sharedMaterial: {fileID: -8721945986030839489, guid: 6e27f2c412325cb4a8184c6d0903a547, type: 2}
+  m_sharedMaterial: {fileID: 2541414851334407014, guid: 6e27f2c412325cb4a8184c6d0903a547, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -772,7 +772,7 @@ MonoBehaviour:
   m_text: Infinity Tap
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 6e27f2c412325cb4a8184c6d0903a547, type: 2}
-  m_sharedMaterial: {fileID: -8721945986030839489, guid: 6e27f2c412325cb4a8184c6d0903a547, type: 2}
+  m_sharedMaterial: {fileID: 2541414851334407014, guid: 6e27f2c412325cb4a8184c6d0903a547, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
