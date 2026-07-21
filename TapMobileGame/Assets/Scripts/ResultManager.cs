@@ -1,18 +1,20 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine.UI;
-using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
+using TMPro;
+
+// ãƒªã‚¶ãƒ«ãƒˆç”»é¢ã§ã‚¹ã‚³ã‚¢ã‚’è¡¨ç¤ºã™ã‚‹ã‚¹ã‚¯ãƒªãƒ—ãƒˆ
 public class ResultManager : MonoBehaviour
 {
-    // æ‚Ù‚Çì‚Á‚½ƒeƒLƒXƒgUI‚ğ“ü‚ê‚é‚½‚ß‚Ì” 
-    public TextMeshProUGUI scoreText;
+    [Header("UIè¨­å®š")]
+    [SerializeField] private TextMeshProUGUI scoreText;
+
     void Start()
     {
-        // 1. GameScene‚©‚çƒXƒRƒA‚ğó‚¯æ‚éistatic‚Åˆø‚«Œp‚¢‚¾ê‡j
+        // ScoreManager ã«é™çš„ï¼ˆstaticï¼‰ã«ä¿å­˜ã•ã‚Œã¦ã„ã‚‹æœ€çµ‚ã‚¹ã‚³ã‚¢ã‚’å–å¾—
         int finalScore = ScoreManager.score;
        
-        scoreText.text = "SCORE   " + finalScore;
+        if (scoreText != null)
+        {
+            scoreText.text = "SCORE   " + finalScore;
+        }
     }
 }

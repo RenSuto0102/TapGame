@@ -1,71 +1,75 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using TMPro;
-using UnityEngine.UI; // 追加: UIを操作するため
+using UnityEngine.UI;
 
+// 制限時間の計算、UIのテキスト表示、ゲーム終了時のフェードアウト処理を行うマネージャー
 public class TimeManager : MonoBehaviour
 {
-    //制限時間
-    public float timeLimit = 30.0f;
-    public TextMeshProUGUI timeText;
+    [Header("タイマー設定")]
+    public float timeLimit = 30.0f; // 制限時間（秒）
 
-    [Header("演出設定")]
-    public Image fadeImage; // フェードアウト用の黒い画像
-    public float fadeSpeed = 1.5f; // フェードの速さ
+    [Header("UI設定")]
+    [SerializeField] private TextMeshProUGUI timeText;
+
+    [Header("フェードアウト演出用設定")]
+    [SerializeField] private Image fadeImage; // フェードアウト用の黒UIパネル
+    [SerializeField] private float fadeSpeed = 1.5f; // フェードアウト速度
     
-    private bool isEnding = false; // 終了処理が始まったかどうかのフラグ
+    private bool isEnding = false; // 終了処理の二重発生を防ぐためのフラグ
 
     void Update()
     {
-        // 終了処理中は何もしない
         if (isEnding) return;
 
-        // 残り時間を少しずつ減らす
-        timeLimit = timeLimit - Time.deltaTime;
+        // 毎フレーム残り時間を減算。フレームレートの影響を受けないよう Time.deltaTime を使用。
+        timeLimit -= Time.deltaTime;
 
-        // 画面のテキストを更新する
-        if (timeText != null)
-        {
-            // 日本語の文字化けを避けるため英語にし、小数点第1位("F1")まで表示します
-            timeText.text = "Time: " + timeLimit.ToString("F1"); 
-        }
+        UpdateTimerUI();
 
-        // もし時間が0以下になったら
+        // 時間切れ判定
         if (timeLimit <= 0)
         {
-            timeLimit = 0; // マイナスにならないように0で止める
-            isEnding = true; // 終了処理開始フラグを立てる
+            timeLimit = 0;
+            isEnding = true;
             
-            // フェードアウトしてからシーン切り替えを行う
+            // コルーチンを使ってフェードアウトとシーン遷移処理を開始
             StartCoroutine(FadeAndChangeScene());
         }
     }
 
-    IEnumerator FadeAndChangeScene()
+    // タイマーテキストUIの表示更新
+    private void UpdateTimerUI()
     {
-        // もしフェード用の画像がセットされていれば、徐々に暗くする
+        if (timeText != null)
+        {
+            // 小数点第1桁("F1")まで表示
+            timeText.text = "Time: " + timeLimit.ToString("F1"); 
+        }
+    }
+
+    // 非同期で黒フェードアウトを動かした後にリザルトシーンへ遷移するコルーチン
+    private IEnumerator FadeAndChangeScene()
+    {
         if (fadeImage != null)
         {
             float alpha = 0;
+            // アルファ値を徐々に増やして画面を暗くしていく
             while (alpha < 1.0f)
             {
                 alpha += Time.deltaTime * fadeSpeed;
-                // 画像の色を黒(0,0,0)にして、透明度(alpha)を徐々に上げていく
                 fadeImage.color = new Color(0, 0, 0, alpha);
-                yield return null; // 1フレーム待つ
+                yield return null; // 1フレーム待機
             }
-            // 念のため1秒待つ（余韻）
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSeconds(0.5f); // 遷移前の余韻時間
         }
         else
         {
-            // 画像がセットされていなくても、1秒だけ待ってから切り替える
             yield return new WaitForSeconds(1.0f);
         }
 
-        // リザルトシーンへ移動
+        // リザルトシーンへ切り替え
         SceneManager.LoadScene("Result");
     }
 }

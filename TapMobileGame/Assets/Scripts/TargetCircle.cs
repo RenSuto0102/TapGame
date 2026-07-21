@@ -1,53 +1,84 @@
 using UnityEngine;
+using System.Collections;
 
+// タップ対象のターゲットオブジェクト（円）を制御するスクリプト
 public class TargetCircle : MonoBehaviour
 {
-    // 円が出現するランダムな範囲（カメラのサイズに合わせて後から調整可能です）
-    [Header("出現範囲")]
-    public float minX = -2.0f;
-    public float maxX = 2.0f;
-    public float minY = -4.0f;
-    public float maxY = 4.0f;
+    [Header("ランダム出現範囲の限界座標")]
+    [SerializeField] private float minX = -2.0f;
+    [SerializeField] private float maxX = 2.0f;
+    [SerializeField] private float minY = -4.0f;
+    [SerializeField] private float maxY = 4.0f;
+
+    [Header("エフェクト設定")]
+    [SerializeField] private GameObject tapEffectPrefab;
+
+    private Coroutine popInCoroutine;
 
     void Start()
     {
-        // ゲーム開始時にもランダムな位置に配置する
+        // 開始時にランダムな位置に配置
         MoveToRandomPosition();
     }
 
-    [Header("エフェクト")]
-    public GameObject tapEffectPrefab; // インスペクターからパーティクルのPrefabをセットします
-
-    // このオブジェクト（円）がタップ（クリック）されたときに呼ばれる関数
+    // オブジェクトがタップ（クリック）されたときに呼ばれるコールバック
     void OnMouseDown()
     {
-        //スコアマネージャーを探す
+        // スコアマネージャーを探してスコアを加算
         ScoreManager manager = FindAnyObjectByType<ScoreManager>();
-
-        //スコア増加の関数を呼ぶ
-        if(manager != null)
+        if (manager != null)
         {
             manager.AddScore(10);
         }
 
-        // エフェクトのプレハブが設定されていれば、現在の位置に生成する
+        // タップされた位置にパーティクルエフェクトを生成
         if (tapEffectPrefab != null)
         {
             Instantiate(tapEffectPrefab, transform.position, Quaternion.identity);
         }
 
-        // 現在の円を消して新しい円を出す（同じオブジェクトを別のランダムな場所に瞬間移動させることで表現します）
+        // カメラを揺らす（時間:0.1秒、揺れの強さ:0.2）
+        CameraJuice.Shake(0.1f, 0.2f);
+
+        // オブジェクトを破壊せず、別の場所に瞬間移動させて使い回す
         MoveToRandomPosition();
     }
 
-    // ランダムな位置に移動させる処理
+    // ランダムな位置に移動させ、出現アニメーションを開始する
     void MoveToRandomPosition()
     {
-        // 指定した範囲の中からランダムなX座標とY座標を決める
         float randomX = Random.Range(minX, maxX);
         float randomY = Random.Range(minY, maxY);
 
-        // 新しい位置へ移動
         transform.position = new Vector3(randomX, randomY, 0f);
+
+        // 重複実行を避けるため、すでに実行中の出現コルーチンがあれば停止
+        if (popInCoroutine != null)
+        {
+            StopCoroutine(popInCoroutine);
+        }
+        // 出現時バウンドアニメーション（コルーチン）を開始
+        popInCoroutine = StartCoroutine(PopIn());
+    }
+
+    // 出現時にポンッと弾むようなイージングアニメーション（OutBack風）をコルーチンで制御
+    private IEnumerator PopIn()
+    {
+        float t = 0;
+        Vector3 targetScale = Vector3.one;
+        transform.localScale = Vector3.zero;
+
+        while (t < 1f)
+        {
+            // 時間の経過（Time.deltaTime）に合わせてアニメーションを進行
+            t += Time.deltaTime * 5f; 
+            
+            // サイン波を加えて一時的に目標サイズ(1.0)を超える動き（バウンド）を作成
+            float scale = Mathf.Sin(t * Mathf.PI) * 0.3f + t;
+            transform.localScale = targetScale * scale;
+            yield return null; // 1フレーム待機
+        }
+        transform.localScale = targetScale;
+        popInCoroutine = null;
     }
 }

@@ -1,13 +1,16 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
+// 背景のレインボーカラー変化と、浮遊する泡（バブル）のスポーンを管理するスクリプト。
+// 大量の生成破棄を伴うため「オブジェクトプーリング」という手法でインスタンスを管理。
 public class FancyBackgroundController : MonoBehaviour
 {
     private Sprite circleSprite;
     private float spawnTimer = 0f;
-    private float spawnInterval = 0.4f; // バブルの発生間隔
+    private float spawnInterval = 0.4f; // 通常時のバブル出現間隔
 
-    // オブジェクトプール用の変数
+    // --- オブジェクトプーリング設定 ---
+    // ランタイムでの頻繁な Instantiate と Destroy によるメモリ確保（ガベージコレクション負荷）を防ぐための仕組み。
+    // 事前に設定した最大数まで生成してプールに格納し、アクティブ・非アクティブを切り替えて再利用する。
     private const int MAX_BUBBLES = 30;
     private GameObject[] bubblePool;
     private int poolIndex = 0;
@@ -15,7 +18,7 @@ public class FancyBackgroundController : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void OnSceneLoaded()
     {
-        // シーンロード時に、まだマネージャーが存在していなければ作成
+        // シーンを跨いで背景演出が途切れないよう、DontDestroyOnLoadでオブジェクトを保持。
         if (GameObject.Find("FancyBackgroundController") == null)
         {
             GameObject bg = new GameObject("FancyBackgroundController");
@@ -26,92 +29,111 @@ public class FancyBackgroundController : MonoBehaviour
 
     void Start()
     {
+        // プログラムから動的にアルファグラデーション付きの円スプライトを作成
         circleSprite = CreateCircleSprite();
         
-        // パフォーマンス向上のため、最初に最大数分のバブルを作って使い回す（オブジェクトプーリング）
+        // オブジェクトプールを初期化し、非アクティブ状態で事前生成
         bubblePool = new GameObject[MAX_BUBBLES];
         for (int i = 0; i < MAX_BUBBLES; i++)
         {
             GameObject bubble = new GameObject("FancyBubble");
-            bubble.transform.SetParent(this.transform); // 整理のために子オブジェクトにする
+            bubble.transform.SetParent(this.transform); // 整理用に階層下に配置
             SpriteRenderer sr = bubble.AddComponent<SpriteRenderer>();
             sr.sprite = circleSprite;
             bubble.AddComponent<FancyBubble>();
-            bubble.SetActive(false); // 初期状態は非表示
+            bubble.SetActive(false); // 初期状態は非アクティブ
             bubblePool[i] = bubble;
         }
     }
 
     void Update()
     {
-        // 1. メインカメラの背景色をなめらかなグラデーション（パステルレインボー）で変化させる
+        // 残り時間をチェックし、10秒未満になったらピンチ状態とする
+        TimeManager timeManager = FindObjectOfType<TimeManager>();
+        bool isPinch = (timeManager != null && timeManager.timeLimit < 10f);
+
+        // 1. 背景色の制御
         if (Camera.main != null)
         {
             Camera.main.clearFlags = CameraClearFlags.SolidColor;
-            float hue = (Time.time * 0.02f) % 1f; // ゆっくり変化
-            // 視認性を高めるため、彩度と明度を下げて少し落ち着いた色合いにする
-            Camera.main.backgroundColor = Color.HSVToRGB(hue, 0.2f, 0.4f);
+            
+            if (isPinch)
+            {
+                // 残り時間わずか: 赤系統の色をベースに、PingPongで点滅（警告フラッシュ）させる
+                float redHue = 0f; 
+                Camera.main.backgroundColor = Color.HSVToRGB(redHue, 0.4f + Mathf.PingPong(Time.time * 2f, 0.2f), 0.5f);
+            }
+            else
+            {
+                // 通常時: レインボーカラーをゆっくりグラデーション変化させる
+                float hue = (Time.time * 0.02f) % 1f; 
+                Camera.main.backgroundColor = Color.HSVToRGB(hue, 0.2f, 0.4f);
+            }
         }
 
-        // 2. 背景バブルを定期的にスポーンさせる
+        // 2. バブルのスポーン処理
+        // ピンチ時は発生速度を3倍に上げて画面の密度を高める
+        float currentSpawnInterval = isPinch ? spawnInterval * 0.3f : spawnInterval;
         spawnTimer += Time.deltaTime;
-        if (spawnTimer >= spawnInterval)
+        
+        if (spawnTimer >= currentSpawnInterval)
         {
             spawnTimer = 0f;
-            SpawnBubble();
+            SpawnBubble(isPinch);
         }
     }
 
-    private void SpawnBubble()
+    // プールからオブジェクトを取り出して再利用する
+    private void SpawnBubble(bool isPinch = false)
     {
         if (Camera.main == null) return;
 
-        // プールから次に使うバブルを取り出す
+        // プールから順番にオブジェクトを選択
         GameObject bubble = bubblePool[poolIndex];
         poolIndex = (poolIndex + 1) % MAX_BUBBLES;
 
-        // カメラの表示領域（ワールド座標）を算出
+        // カメラの画角から画面幅を割り出し、出現する横幅（X座標）を決定
         float camHeight = Camera.main.orthographicSize * 2f;
         float camWidth = camHeight * Camera.main.aspect;
 
         float spawnX = Random.Range(-camWidth / 2f, camWidth / 2f);
-        // 画面の少し下からスポーンさせる
-        float spawnY = -Camera.main.orthographicSize - 1f;
+        float spawnY = -Camera.main.orthographicSize - 1f; // 画面最下部よりも下
 
-        // 背景として描画させるため、Z座標は奥側（例: 10f）に配置
+        // ゲームオブジェクトの手前を塞がないようにZ座標を奥(10f)に配置
         bubble.transform.position = new Vector3(spawnX, spawnY, 10f);
 
         SpriteRenderer sr = bubble.GetComponent<SpriteRenderer>();
         
-        // ランダムな色合い（パステルカラー、かなり薄い半透明）
+        // パステル調のランダムな色（背景の邪魔をしないよう薄くする）
         float hue = Random.Range(0f, 1f);
         Color color = Color.HSVToRGB(hue, 0.5f, 0.8f);
-        color.a = Random.Range(0.05f, 0.15f); // 視認性を邪魔しないようかなり薄くする
+        color.a = Random.Range(0.05f, 0.15f); 
         sr.color = color;
 
-        // ランダムな大きさ
+        // 大きさをランダム化
         float scale = Random.Range(0.2f, 0.8f);
         bubble.transform.localScale = new Vector3(scale, scale, 1f);
 
-        // 浮遊の動きを制御するスクリプトをリセットしてアクティブにする
+        // 各バブルの動作を制御するスクリプトを更新して再起動
         FancyBubble behavior = bubble.GetComponent<FancyBubble>();
-        behavior.speed = Random.Range(0.8f, 2.2f);
-        behavior.amplitude = Random.Range(0.15f, 0.4f);
-        behavior.frequency = Random.Range(0.8f, 2.0f);
-        behavior.lifetime = Random.Range(6f, 12f);
+        // ピンチ時は移動速度を3倍、揺れ幅と周波数を2倍にして激しい動きにする
+        behavior.speed = Random.Range(0.8f, 2.2f) * (isPinch ? 3f : 1f);
+        behavior.amplitude = Random.Range(0.15f, 0.4f) * (isPinch ? 2f : 1f);
+        behavior.frequency = Random.Range(0.8f, 2.0f) * (isPinch ? 2f : 1f);
+        behavior.lifetime = Random.Range(6f, 12f) / (isPinch ? 2f : 1f);
         
-        // 再生開始
         behavior.ResetBubble();
         bubble.SetActive(true);
     }
 
-    // 実行時に動的にきれいな円のスプライトを生成する（テクスチャインポート不要）
+    // 動的に円のスプライト用のテクスチャをメモリ上に構築する
     private Sprite CreateCircleSprite()
     {
         int size = 64;
         Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
         Color[] colors = new Color[size * size];
         float center = size / 2f;
+        
         for (int y = 0; y < size; y++)
         {
             for (int x = 0; x < size; x++)
@@ -119,7 +141,8 @@ public class FancyBackgroundController : MonoBehaviour
                 float dist = Vector2.Distance(new Vector2(x, y), new Vector2(center, center));
                 float maxDist = size / 2f;
                 float alpha = Mathf.Clamp01(1f - (dist / maxDist));
-                // 境界をなめらかにフェードアウトさせる
+                
+                // 外側に向かってなめらかにフェードアウトするようアルファを滑らかに調整
                 alpha = Mathf.SmoothStep(0f, 1f, alpha);
                 colors[y * size + x] = new Color(1f, 1f, 1f, alpha);
             }
@@ -130,6 +153,7 @@ public class FancyBackgroundController : MonoBehaviour
     }
 }
 
+// 泡のふわふわ浮遊アクションを制御する個別のクラス
 public class FancyBubble : MonoBehaviour
 {
     public float speed = 1.5f;
@@ -155,26 +179,26 @@ public class FancyBubble : MonoBehaviour
     void Update()
     {
         age += Time.deltaTime;
+        
+        // 寿命を迎えたら非アクティブにする（プールへ返却）
         if (age >= lifetime)
         {
-            // 寿命が来たら非表示にする（オブジェクトプールに戻す）
             gameObject.SetActive(false);
             return;
         }
 
-        // 上昇
+        // Y軸方向の上昇運動
         float nextY = transform.position.y + speed * Time.deltaTime;
 
-        // 左右にゆらゆら揺らす
+        // X軸方向へのSin波による反復運動（揺らゆらした動きをシミュレーション）
         float nextX = startX + Mathf.Sin(age * frequency) * amplitude;
 
         transform.position = new Vector3(nextX, nextY, transform.position.z);
 
-        // 消え際にだんだんフェードアウト
+        // 寿命に合わせて徐々にフェードアウトさせる
         if (sr != null)
         {
             Color c = sr.color;
-            // 寿命の残り割合に応じてアルファ値を減少
             c.a = Mathf.Lerp(c.a, 0f, age / lifetime);
             sr.color = c;
         }
